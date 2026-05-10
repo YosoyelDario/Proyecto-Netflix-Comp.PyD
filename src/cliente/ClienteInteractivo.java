@@ -3,7 +3,6 @@ package cliente;
 import compartido.Pelicula;
 import compartido.Peticion;
 import compartido.Respuesta;
-
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.DatagramPacket;
@@ -21,6 +20,8 @@ public class ClienteInteractivo {
     
     private static String hostSubtitulos = "localhost";
     private static int puertoSubtitulos = 7000;
+    
+    private static boolean sesionIniciada = false;
 
     public static void main(String[] args) {
         cargarConfiguracion(args);
@@ -40,32 +41,39 @@ public class ClienteInteractivo {
             System.out.println("Marshalling activo mediante Object Streams.");
 
             OUTER:
+            OUTER_1:
             while (true) {
                 System.out.println("\n--- NETFLIX INTERACTIVO ---");
-                System.out.println("1. Ver Catálogo");
-                System.out.println("2. Ver Perfil");
-                System.out.println("3. Reproducir Película");
-                System.out.println("4. Salir");
+                System.out.println("1. Iniciar sesión");
+                System.out.println("2. Ver Catálogo");
+                System.out.println("3. Ver Perfil");
+                System.out.println("4. Reproducir Película");
+                System.out.println("5. Salir");
                 System.out.print("Selección: ");
+                
                 String opcion = scanner.nextLine();
                 Peticion peticion = null;
+                
                 switch (opcion) {
-                    case "1" -> peticion = new Peticion("VER_CATALOGO", "");
-                    case "2" -> {
-                        System.out.print("Nombre de usuario: ");
+                    case "1" -> {
+                        System.out.print("Usuario: ");
                         String usuario = scanner.nextLine();
-                        peticion = new Peticion("VER_PERFIL", usuario);
+                        System.out.print("Contraseña: ");
+                        String password = scanner.nextLine();
+                        peticion = new Peticion("LOGIN", usuario + ":" + password);
                     }
-                    case "3" -> {
+                    case "2" -> peticion = new Peticion("VER_CATALOGO", "");
+                    case "3" -> peticion = new Peticion("VER_PERFIL", "");
+                    case "4" -> {
                         System.out.print("Título de la película: ");
                         String titulo = scanner.nextLine();
                         peticion = new Peticion("ELEGIR_PELICULA", titulo);
                     }
-                    case "4" -> {
+                    case "5" -> {
                         out.writeObject(new Peticion("SALIR", ""));
                         out.flush();
                         System.out.println("Cerrando cliente...");
-                        break OUTER;
+                        break OUTER_1;
                     }
                     default -> {
                         System.out.println("Opción no válida.");
@@ -126,11 +134,15 @@ public class ClienteInteractivo {
     
     private static void procesarRespuesta(Respuesta respuesta) {
         switch (respuesta.codigo) {
+            case "LOGIN_OK" -> {
+                sesionIniciada = true;
+                System.out.println("-> " + respuesta.payload);
+            }
+
             case "OK" -> System.out.println("-> Servidor: " + respuesta.payload);
 
             case "STREAM_INFO" -> {
                 Pelicula pelicula = (Pelicula) respuesta.payload;
-                //iniciarStreamingUDP(pelicula);
                 iniciarReproduccionDistribuida(pelicula);
             }
 

@@ -3,6 +3,7 @@ package servidores;
 import compartido.Pelicula;
 import compartido.Peticion;
 import compartido.Respuesta;
+import compartido.Usuario;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -14,6 +15,8 @@ public class Handler implements Runnable {
     private final Socket socket;
     private final RepositorioPeliculas repo;
     private final String ipCliente;
+
+    private Usuario usuarioActual;
 
     public Handler(Socket socket, RepositorioPeliculas repo, String ipCliente) {
         this.socket = socket;
@@ -47,17 +50,37 @@ public class Handler implements Runnable {
                 );
 
                 switch (comando) {
+                    case "LOGIN":
+                        procesarLogin(peticion, out);
+                        break;
+
                     case "VER_CATALOGO":
+                        if (!estaAutenticado(out)) {
+                            break;
+                        }
+
                         out.writeObject(new Respuesta("OK", repo.getLista()));
                         System.out.println("[" + nombreHilo + "] Respuesta enviada: Catálogo.");
                         break;
 
                     case "VER_PERFIL":
-                        out.writeObject(new Respuesta("OK", repo.getPerfil(peticion.parametro)));
+                        if (!estaAutenticado(out)) {
+                            break;
+                        }
+
+                        out.writeObject(new Respuesta("OK", usuarioActual.toString()));
                         System.out.println("[" + nombreHilo + "] Respuesta enviada: Perfil.");
                         break;
 
                     case "ELEGIR_PELICULA":
+                        if (!estaAutenticado(out)) {
+                            break;
+                        }
+
+                        if (!tieneSuscripcionActiva(out)) {
+                            break;
+                        }
+
                         Pelicula pelicula = repo.buscar(peticion.parametro);
 
                         if (pelicula != null) {
@@ -98,5 +121,51 @@ public class Handler implements Runnable {
             } catch (IOException ignored) {
             }
         }
+    }
+
+    private void procesarLogin(Peticion peticion, ObjectOutputStream out) throws IOException {
+        String[] partes = peticion.parametro.split(":");
+
+        if (partes.length < 2) {
+            out.writeObject(new Respuesta("ERROR", "Formato de login inválido."));
+            return;
+        }
+
+        String username = partes[0];
+        String password = partes[1];
+
+        Usuario usuario = repo.autenticar(username, password);
+
+        if (usuario == null) {
+            out.writeObject(new Respuesta("ERROR", "Credenciales incorrectas."));
+            return;
+        }
+
+        usuarioActual = usuario;
+
+        if (!usuarioActual.suscripcionActiva) {
+            out.writeObject(new Respuesta("LOGIN_OK", "Login correcto, pero la suscripción está inactiva."));
+            return;
+        }
+
+        out.writeObject(new Respuesta("LOGIN_OK", "Bienvenido " + usuarioActual.username + ". " + usuarioActual.plan));
+    }
+
+    private boolean estaAutenticado(ObjectOutputStream out) throws IOException {
+        if (usuarioActual == null) {
+            out.writeObject(new Respuesta("ERROR", "Debe iniciar sesión antes de usar el sistema."));
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean tieneSuscripcionActiva(ObjectOutputStream out) throws IOException {
+        if (!usuarioActual.suscripcionActiva) {
+            out.writeObject(new Respuesta("ERROR", "Suscripción inactiva. No puede reproducir contenido."));
+            return false;
+        }
+
+        return true;
     }
 }
