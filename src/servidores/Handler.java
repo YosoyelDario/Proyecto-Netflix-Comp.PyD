@@ -16,12 +16,23 @@ public class Handler implements Runnable {
     private final RepositorioPeliculas repo;
     private final String ipCliente;
 
+    private final String hostAuth;
+    private final int puertoAuth;
+
     private Usuario usuarioActual;
 
-    public Handler(Socket socket, RepositorioPeliculas repo, String ipCliente) {
+    public Handler(
+            Socket socket,
+            RepositorioPeliculas repo,
+            String ipCliente,
+            String hostAuth,
+            int puertoAuth
+    ) {
         this.socket = socket;
         this.repo = repo;
         this.ipCliente = ipCliente;
+        this.hostAuth = hostAuth;
+        this.puertoAuth = puertoAuth;
     }
 
     @Override
@@ -124,31 +135,55 @@ public class Handler implements Runnable {
     }
 
     private void procesarLogin(Peticion peticion, ObjectOutputStream out) throws IOException {
-        String[] partes = peticion.parametro.split(":");
+        Respuesta respuestaAuth = solicitarAutenticacion(peticion);
 
-        if (partes.length < 2) {
-            out.writeObject(new Respuesta("ERROR", "Formato de login inválido."));
+        if (respuestaAuth == null) {
+            out.writeObject(new Respuesta("ERROR", "Servidor de autenticación no disponible."));
             return;
         }
 
-        String username = partes[0];
-        String password = partes[1];
-
-        Usuario usuario = repo.autenticar(username, password);
-
-        if (usuario == null) {
-            out.writeObject(new Respuesta("ERROR", "Credenciales incorrectas."));
+        if (!respuestaAuth.codigo.equals("LOGIN_OK")) {
+            out.writeObject(respuestaAuth);
             return;
         }
 
-        usuarioActual = usuario;
+        usuarioActual = (Usuario) respuestaAuth.payload;
 
         if (!usuarioActual.suscripcionActiva) {
-            out.writeObject(new Respuesta("LOGIN_OK", "Login correcto, pero la suscripción está inactiva."));
+            out.writeObject(new Respuesta(
+                "LOGIN_OK",
+                "Login correcto, pero la suscripción está inactiva."
+            ));
             return;
         }
 
-        out.writeObject(new Respuesta("LOGIN_OK", "Bienvenido " + usuarioActual.username + ". " + usuarioActual.plan));
+        out.writeObject(new Respuesta(
+            "LOGIN_OK",
+            "Bienvenido " + usuarioActual.username + ". " + usuarioActual.plan
+        ));
+    }
+
+    private Respuesta solicitarAutenticacion(Peticion peticionLogin) {
+        try (
+            Socket socketAuth = new Socket(hostAuth, puertoAuth);
+            ObjectOutputStream outAuth = new ObjectOutputStream(socketAuth.getOutputStream());
+            ObjectInputStream inAuth = new ObjectInputStream(socketAuth.getInputStream())
+        ) {
+            outAuth.writeObject(peticionLogin);
+            outAuth.flush();
+
+            Object respuesta = inAuth.readObject();
+
+            if (respuesta instanceof Respuesta) {
+                return (Respuesta) respuesta;
+            }
+
+            return new Respuesta("ERROR", "Respuesta inválida del servidor de autenticación.");
+
+        } catch (Exception e) {
+            System.err.println("[AUTH-CLIENT] No se pudo contactar al servidor de autenticación: " + e.getMessage());
+            return null;
+        }
     }
 
     private boolean estaAutenticado(ObjectOutputStream out) throws IOException {

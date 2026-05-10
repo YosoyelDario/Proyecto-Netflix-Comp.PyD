@@ -49,7 +49,7 @@ public class ServidorSubtitulos {
                 out.println(linea);
 
                 if (!linea.equals("FIN_SUBTITULOS")) {
-                    Thread.sleep(3000);
+                    Thread.sleep(2000);
                 }
             }
 
