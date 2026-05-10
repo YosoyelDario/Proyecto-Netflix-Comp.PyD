@@ -5,18 +5,24 @@ import java.net.ServerSocket;
 import java.net.Socket;
 
 public class ServidorCatalogo {
-    private static final int PORT = 5000;
+    private int puerto = 5000;
     private final RepositorioPeliculas repositorio = new RepositorioPeliculas();
 
     public static void main(String[] args) {
-        new ServidorCatalogo().start();
+        ServidorCatalogo servidor = new ServidorCatalogo();
+
+        if (args.length >= 1) {
+            servidor.puerto = Integer.parseInt(args[0]);
+        }
+
+        servidor.start();
     }
 
     public void start() {
-        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+        try (ServerSocket serverSocket = new ServerSocket(puerto)) {
             System.out.println("==================================================");
             System.out.println("[SISTEMA] Servidor de Control TCP iniciado");
-            System.out.println("[SISTEMA] Escuchando en puerto: " + PORT);
+            System.out.println("[SISTEMA] Escuchando en puerto: " + puerto);
             System.out.println("==================================================");
 
             while (true) {

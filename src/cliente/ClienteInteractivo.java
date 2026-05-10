@@ -13,22 +13,33 @@ import java.net.Socket;
 import java.util.Scanner;
 
 public class ClienteInteractivo {
-    private static final String HOST_TCP = "localhost";
-    private static final int PORT_TCP = 5000;
+    private static String hostTCP = "localhost";
+    private static int puertoTCP = 5000;
 
-    private static final String HOST_UDP = "localhost";
-    private static final int PORT_UDP = 6000;
+    private static String hostUDP = "localhost";
+    private static int puertoUDP = 6000;
+    
+    private static String hostSubtitulos = "localhost";
+    private static int puertoSubtitulos = 7000;
 
     public static void main(String[] args) {
+        cargarConfiguracion(args);
+
+        System.out.println("Configuración del cliente:");
+        System.out.println("Servidor TCP/Catálogo: " + hostTCP + ":" + puertoTCP);
+        System.out.println("Servidor UDP/Streaming: " + hostUDP + ":" + puertoUDP);
+        System.out.println("Servidor TCP/Subtítulos: " + hostSubtitulos + ":" + puertoSubtitulos);
+
         try (
-            Socket socketTCP = new Socket(HOST_TCP, PORT_TCP);
+            Socket socketTCP = new Socket(hostTCP, puertoTCP);
             ObjectOutputStream out = new ObjectOutputStream(socketTCP.getOutputStream());
             ObjectInputStream in = new ObjectInputStream(socketTCP.getInputStream());
             Scanner scanner = new Scanner(System.in)
         ) {
-            System.out.println("Conectado al Servidor de Control TCP.");
+            System.out.println("\nConectado al Servidor de Control TCP.");
             System.out.println("Marshalling activo mediante Object Streams.");
 
+            OUTER:
             while (true) {
                 System.out.println("\n--- NETFLIX INTERACTIVO ---");
                 System.out.println("1. Ver Catálogo");
@@ -36,39 +47,33 @@ public class ClienteInteractivo {
                 System.out.println("3. Reproducir Película");
                 System.out.println("4. Salir");
                 System.out.print("Selección: ");
-
                 String opcion = scanner.nextLine();
                 Peticion peticion = null;
-
-                if (opcion.equals("1")) {
-                    peticion = new Peticion("VER_CATALOGO", "");
-
-                } else if (opcion.equals("2")) {
-                    System.out.print("Nombre de usuario: ");
-                    String usuario = scanner.nextLine();
-
-                    peticion = new Peticion("VER_PERFIL", usuario);
-
-                } else if (opcion.equals("3")) {
-                    System.out.print("Título de la película: ");
-                    String titulo = scanner.nextLine();
-
-                    peticion = new Peticion("ELEGIR_PELICULA", titulo);
-
-                } else if (opcion.equals("4")) {
-                    out.writeObject(new Peticion("SALIR", ""));
-                    out.flush();
-                    System.out.println("Cerrando cliente...");
-                    break;
-
-                } else {
-                    System.out.println("Opción no válida.");
-                    continue;
+                switch (opcion) {
+                    case "1" -> peticion = new Peticion("VER_CATALOGO", "");
+                    case "2" -> {
+                        System.out.print("Nombre de usuario: ");
+                        String usuario = scanner.nextLine();
+                        peticion = new Peticion("VER_PERFIL", usuario);
+                    }
+                    case "3" -> {
+                        System.out.print("Título de la película: ");
+                        String titulo = scanner.nextLine();
+                        peticion = new Peticion("ELEGIR_PELICULA", titulo);
+                    }
+                    case "4" -> {
+                        out.writeObject(new Peticion("SALIR", ""));
+                        out.flush();
+                        System.out.println("Cerrando cliente...");
+                        break OUTER;
+                    }
+                    default -> {
+                        System.out.println("Opción no válida.");
+                        continue;
+                    }
                 }
-
                 out.writeObject(peticion);
                 out.flush();
-
                 Respuesta respuesta = (Respuesta) in.readObject();
                 procesarRespuesta(respuesta);
             }
@@ -78,30 +83,66 @@ public class ClienteInteractivo {
         }
     }
 
+    private static void cargarConfiguracion(String[] args) {
+        /*
+         * Formato esperado:
+         *
+         * args[0] = IP o host del ServidorCatalogo
+         * args[1] = puerto del ServidorCatalogo
+         * args[2] = IP o host del ServidorStreamingUDP
+         * args[3] = puerto del ServidorStreamingUDP
+         * args[4] = IP o host del ServidorSubtitulos
+         * args[5] = puerto del ServidorSubtitulos
+         *
+         * Ejemplo:
+         * java -cp build/classes cliente.ClienteInteractivo localhost 5000 localhost 6000 localhost 7000
+         */
+
+        if (args.length >= 1) {
+            hostTCP = args[0];
+        }
+
+        if (args.length >= 2) {
+            puertoTCP = Integer.parseInt(args[1]);
+        }
+
+        if (args.length >= 3) {
+            hostUDP = args[2];
+        }
+
+        if (args.length >= 4) {
+            puertoUDP = Integer.parseInt(args[3]);
+        }
+
+        if (args.length >= 5) {
+            hostSubtitulos = args[4];
+        }
+
+        if (args.length >= 6) {
+            puertoSubtitulos = Integer.parseInt(args[5]);
+        }
+    }
+    
+    
     private static void procesarRespuesta(Respuesta respuesta) {
         switch (respuesta.codigo) {
-            case "OK":
-                System.out.println("-> Servidor: " + respuesta.payload);
-                break;
+            case "OK" -> System.out.println("-> Servidor: " + respuesta.payload);
 
-            case "STREAM_INFO":
+            case "STREAM_INFO" -> {
                 Pelicula pelicula = (Pelicula) respuesta.payload;
-                iniciarStreamingUDP(pelicula);
-                break;
+                //iniciarStreamingUDP(pelicula);
+                iniciarReproduccionDistribuida(pelicula);
+            }
 
-            case "ERROR":
-                System.err.println("-> Error del Servidor: " + respuesta.payload);
-                break;
+            case "ERROR" -> System.err.println("-> Error del Servidor: " + respuesta.payload);
 
-            default:
-                System.err.println("-> Respuesta desconocida: " + respuesta.codigo);
-                break;
+            default -> System.err.println("-> Respuesta desconocida: " + respuesta.codigo);
         }
     }
 
     private static void iniciarStreamingUDP(Pelicula pelicula) {
         try (DatagramSocket udpSocket = new DatagramSocket()) {
-            InetAddress ip = InetAddress.getByName(HOST_UDP);
+            InetAddress ip = InetAddress.getByName(hostUDP);
 
             String mensaje = "PLAY:" + pelicula.titulo + ":" + pelicula.fragmentos;
             byte[] bufferSalida = mensaje.getBytes();
@@ -110,12 +151,13 @@ public class ClienteInteractivo {
                 bufferSalida,
                 bufferSalida.length,
                 ip,
-                PORT_UDP
+                puertoUDP
             );
 
             udpSocket.send(paqueteSalida);
 
             System.out.println("--- REPRODUCIENDO: " + pelicula.titulo + " ---");
+            System.out.println("Conectado al servidor UDP: " + hostUDP + ":" + puertoUDP);
 
             byte[] bufferEntrada = new byte[1024];
 
@@ -144,6 +186,50 @@ public class ClienteInteractivo {
 
         } catch (Exception e) {
             System.err.println("Error en flujo UDP: " + e.getMessage());
+        }
+    }
+
+    private static void iniciarReproduccionDistribuida(Pelicula pelicula) {
+        Thread hiloVideo = new Thread(() -> iniciarStreamingUDP(pelicula));
+        Thread hiloSubtitulos = new Thread(() -> iniciarSubtitulosTCP(pelicula));
+
+        hiloVideo.start();
+        hiloSubtitulos.start();
+
+        try {
+            hiloVideo.join();
+            hiloSubtitulos.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("La reproducción fue interrumpida.");
+        }
+    }
+    
+    private static void iniciarSubtitulosTCP(Pelicula pelicula) {
+        try (
+            Socket socketSubtitulos = new Socket(hostSubtitulos, puertoSubtitulos);
+            java.io.BufferedReader in = new java.io.BufferedReader(
+                new java.io.InputStreamReader(socketSubtitulos.getInputStream())
+            )
+        ) {
+            System.out.println("--- SUBTÍTULOS ACTIVOS PARA: " + pelicula.titulo + " ---");
+            System.out.println("Conectado al servidor de subtítulos: " + hostSubtitulos + ":" + puertoSubtitulos);
+
+            String linea;
+
+            while ((linea = in.readLine()) != null) {
+                if (linea.equals("FIN_SUBTITULOS")) {
+                    break;
+                }
+
+                System.out.println("SUB: " + linea);
+            }
+
+            System.out.println("--- SUBTÍTULOS FINALIZADOS ---");
+
+        } catch (Exception e) {
+            System.err.println("Error en subtítulos: " + e.getMessage());
+            System.err.println("La reproducción de video puede continuar sin subtítulos.");
         }
     }
 }

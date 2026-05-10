@@ -5,12 +5,16 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 
 public class ServidorStreamingUDP {
-    private static final int PUERTO_UDP = 6000;
+    private static int puertoUDP = 6000;
     private static final CacheWeb cache = new CacheWeb();
 
     public static void main(String[] args) {
-        try (DatagramSocket socket = new DatagramSocket(PUERTO_UDP)) {
-            System.out.println("Servidor Streaming UDP iniciado. Puerto: " + PUERTO_UDP);
+        if (args.length >= 1) {
+            puertoUDP = Integer.parseInt(args[0]);
+        }
+
+        try (DatagramSocket socket = new DatagramSocket(puertoUDP)) {
+            System.out.println("Servidor Streaming UDP iniciado. Puerto: " + puertoUDP);
 
             while (true) {
                 byte[] buffer = new byte[1024];
@@ -26,6 +30,11 @@ public class ServidorStreamingUDP {
 
                 if (datosStr.startsWith("PLAY:")) {
                     String[] partes = datosStr.split(":");
+
+                    if (partes.length < 3) {
+                        System.err.println("Petición UDP inválida: " + datosStr);
+                        continue;
+                    }
 
                     String pelicula = partes[1];
                     int fragmentos = Integer.parseInt(partes[2]);
@@ -71,7 +80,6 @@ public class ServidorStreamingUDP {
 
                 socket.send(paquete);
 
-                // Simula bitrate/transmisión por fragmentos
                 Thread.sleep(1000);
             }
 
