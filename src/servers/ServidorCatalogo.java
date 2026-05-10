@@ -1,6 +1,11 @@
+package servers;
+
+import compartido.Pelicula;
+import compartido.Peticion;
+import compartido.Respuesta;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.io.*;
 import java.util.*;
 
 public class ServidorCatalogo {
@@ -38,14 +43,11 @@ public class ServidorCatalogo {
  */
 class RepositorioPeliculas {
     private final Map<String, Pelicula> db = new HashMap<>();
-    private final Map<String, String> usuarios = new HashMap<>();
 
     public RepositorioPeliculas() {
         db.put("matrix", new Pelicula("Matrix", 10));
         db.put("inception", new Pelicula("Inception", 15));
         db.put("interstellar", new Pelicula("Interstellar", 7));
-        
-        usuarios.put("vicente", "Plan Premium - Chile");
     }
 
     public synchronized List<Pelicula> getLista() {
@@ -54,10 +56,6 @@ class RepositorioPeliculas {
 
     public synchronized Pelicula buscar(String titulo) {
         return db.get(titulo.toLowerCase());
-    }
-
-    public synchronized String getPerfil(String user) {
-        return usuarios.getOrDefault(user.toLowerCase(), "Usuario inexistente");
     }
 }
 
@@ -96,11 +94,6 @@ class Handler implements Runnable {
                     case "VER_CATALOGO":
                         out.writeObject(new Respuesta("OK", repo.getLista()));
                         System.out.println("[" + nombreHilo + "] Respuesta enviada (Catálogo).");
-                        break;
-
-                    case "VER_PERFIL":
-                        out.writeObject(new Respuesta("OK", repo.getPerfil(p.parametro)));
-                        System.out.println("[" + nombreHilo + "] Respuesta enviada (Perfil).");
                         break;
 
                     case "ELEGIR_PELICULA":
