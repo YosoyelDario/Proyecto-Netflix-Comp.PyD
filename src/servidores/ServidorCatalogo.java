@@ -3,6 +3,9 @@ package servidores;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 import javax.net.ssl.SSLServerSocketFactory;
 /**
  * Servidor A - Catálogo y Búsqueda (Puerto 5000).
@@ -51,16 +54,15 @@ public class ServidorCatalogo {
             System.out.println("[CATALOGO] BD Películas: " + rutaBDPeliculas);
             System.out.println("==================================================");
 
+            ExecutorService pool = Executors.newFixedThreadPool(20);
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 String ipCliente = clientSocket.getInetAddress().getHostAddress();
 
                 // Un hilo por petición recibida (concurrencia)
-                Thread hiloCliente = new Thread(
-                    new Handler(clientSocket, repositorio, ipCliente, hostAuth, puertoAuth)
-                );
-
-                hiloCliente.start();
+                pool.execute(
+        new Handler(clientSocket, repositorio, ipCliente, hostAuth, puertoAuth)
+    );
             }
 
         } catch (IOException e) {

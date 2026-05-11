@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * - CACHE HIT: video ya descargado, se sirve desde memoria (rápido)
  * - CACHE MISS: video no en memoria, se descarga del backend (lento)
  */
+
 public class CacheWeb {
     private final ConcurrentHashMap<String, byte[]> almacenamiento = new ConcurrentHashMap<>();
     private final BackendAWS backend;

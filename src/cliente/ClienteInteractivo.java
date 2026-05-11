@@ -83,6 +83,8 @@ public class ClienteInteractivo {
         scanner.close();
     }
 
+
+
     private static void menuLogin(Scanner scanner) {
         System.out.print("Usuario: ");
         String usuario = scanner.nextLine().trim();
@@ -138,16 +140,18 @@ public class ClienteInteractivo {
             new Thread(() -> descargarSubtitulosTCP(pelicula, idioma)).start();
         }
 
-        // Consumidor: Master Clock
+        
         ejecutarRelojMaestro(pelicula);
     }
 
     private static void ejecutarRelojMaestro(Pelicula pelicula) {
         System.out.println("\n--- REPRODUCIENDO: " + pelicula.titulo + " ---");
-        int reloj = 0;
+
         int segundosPorFragmento = 2; // Sincronizado con Pelicula.java
         String subActual = null;
         int tiempoSub = -1;
+        int reloj = 0;
+        
 
         while (!recepcionVideoCompletada.get() || !bufferVideo.isEmpty()) {
             // Sincronía de Video
@@ -194,12 +198,11 @@ public class ClienteInteractivo {
     }
 
     private static void descargarSubtitulosTCP(Pelicula pelicula, String idioma) {
-        // Solicitar subtítulos vía Gateway ZUUL (Control Plane, SSL/TCP)
         Respuesta resp = enviarAlGateway(new Peticion("SOLICITAR_SUBTITULOS", pelicula.titulo + ":" + idioma));
 
         if (resp == null) {
             // Fallo parcial: subtítulos no disponibles, el video continúa
-            System.err.println("  [Aviso] Subtítulos no disponibles (servidor no responde).");
+            System.err.println("  [Aviso] Subtítulos no disponibles.");
             return;
         }
 
@@ -256,6 +259,8 @@ public class ClienteInteractivo {
      * @param p Petición a enviar
      * @return Respuesta del servidor, o null si todos los reintentos fallaron
      */
+
+
     private static Respuesta enviarAlGateway(Peticion p) {
         Exception ultimoError = null;
 

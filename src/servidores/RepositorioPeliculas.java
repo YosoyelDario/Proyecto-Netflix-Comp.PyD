@@ -58,34 +58,24 @@ public class RepositorioPeliculas {
         }
     }
 
-    /**
-     * Devuelve la lista completa del catálogo (Fase 2 - Carga del Catálogo).
-     */
+    
+    
     public synchronized List<Pelicula> getLista() {
         return new ArrayList<>(peliculas.values());
     }
-
-    /**
-     * Busca una película por título exacto (para ELEGIR_PELICULA / streaming).
-     */
     public synchronized Pelicula buscarExacto(String titulo) {
         if (titulo == null) {
             return null;
         }
-
         for (Pelicula p : peliculas.values()) {
             if (p.titulo.equalsIgnoreCase(titulo)) {
                 return p;
             }
         }
-
         return null;
     }
 
-    /**
-     * Búsqueda parcial tipo LIKE "%query%" (Fase 3 - Búsqueda de Título).
-     * Retorna lista de coincidencias.
-     */
+
     public synchronized List<Pelicula> buscarPorQuery(String query) {
         List<Pelicula> resultados = new ArrayList<>();
 
