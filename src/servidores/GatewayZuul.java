@@ -9,6 +9,8 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSocketFactory;
 
 /**
  * Gateway ZUUL - Enrutador / Balanceador (Puerto 4000).
@@ -37,13 +39,16 @@ public class GatewayZuul {
     private static int puertoServidorB = 5100;
 
     public static void main(String[] args) {
+        System.setProperty("javax.net.ssl.keyStore", "data/keystore.jks");
+    System.setProperty("javax.net.ssl.keyStorePassword", "123456");
+    System.setProperty("javax.net.ssl.trustStore", "data/keystore.jks");
+    System.setProperty("javax.net.ssl.trustStorePassword", "123456");
         if (args.length >= 1) puerto = Integer.parseInt(args[0]);
         if (args.length >= 2) hostServidorA = args[1];
         if (args.length >= 3) puertoServidorA = Integer.parseInt(args[2]);
         if (args.length >= 4) hostServidorB = args[3];
         if (args.length >= 5) puertoServidorB = Integer.parseInt(args[4]);
-
-        try (ServerSocket serverSocket = new ServerSocket(puerto)) {
+        try (ServerSocket serverSocket = SSLServerSocketFactory.getDefault().createServerSocket(puerto)) {
             System.out.println("==================================================");
             System.out.println("[GATEWAY] Gateway ZUUL iniciado");
             System.out.println("[GATEWAY] Escuchando en puerto: " + puerto);
@@ -90,6 +95,7 @@ public class GatewayZuul {
         }
 
         Peticion peticion = (Peticion) recibido;
+        peticion.ipOrigen = ipCliente;
         String comando = peticion.comando.toUpperCase();
 
         System.out.println("[" + hilo + "] " + ipCliente + " -> " + comando);
@@ -118,13 +124,16 @@ public class GatewayZuul {
                 outCliente.flush();
         }
 
-    } catch (EOFException e) {
-        System.out.println("[" + hilo + "] Desconexión: " + ipCliente);
-    } catch (Exception e) {
-        System.err.println("[" + hilo + "] Error con " + ipCliente + ": " + e.getMessage());
-    } finally {
-        try { clientSocket.close(); } catch (IOException ignored) {}
-    }
+    } catch (java.net.SocketException e) {
+            // Captura de cierre abrupto de red
+            System.err.println("[" + hilo + "] Desconexión forzosa detectada (Connection reset): " + ipCliente);
+        } catch (EOFException e) {
+            System.out.println("[" + hilo + "] Desconexión normal: " + ipCliente);
+        } catch (Exception e) {
+            System.err.println("[" + hilo + "] Error con " + ipCliente + ": " + e.getMessage());
+        } finally {
+            try { clientSocket.close(); } catch (IOException ignored) {}
+        }
 }
 
 
@@ -142,8 +151,8 @@ public class GatewayZuul {
             String hilo
     ) {
         try (
-            Socket socketBackend = new Socket(host, puerto);
-            ObjectOutputStream outBackend = new ObjectOutputStream(socketBackend.getOutputStream());
+            Socket socketBackend = SSLSocketFactory.getDefault().createSocket(host, puerto);
+    ObjectOutputStream outBackend = new ObjectOutputStream(socketBackend.getOutputStream());
             ObjectInputStream inBackend = new ObjectInputStream(socketBackend.getInputStream())
         ) {
             // Enviar petición al servidor interno

@@ -11,6 +11,7 @@ import java.net.Socket;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.net.ssl.SSLServerSocketFactory;
 
 /**
  * Servidor B - Perfiles y Autenticación (Puerto 5100).
@@ -35,6 +36,10 @@ public class ServidorAutenticacion {
     private static final Map<String, Usuario> sesionesActivas = new ConcurrentHashMap<>();
 
     public static void main(String[] args) {
+        System.setProperty("javax.net.ssl.keyStore", "data/keystore.jks");
+    System.setProperty("javax.net.ssl.keyStorePassword", "123456");
+    System.setProperty("javax.net.ssl.trustStore", "data/keystore.jks");
+    System.setProperty("javax.net.ssl.trustStorePassword", "123456");
         if (args.length >= 1) {
             puerto = Integer.parseInt(args[0]);
         }
@@ -44,8 +49,8 @@ public class ServidorAutenticacion {
         }
 
         repoUsuarios = new RepositorioUsuarios(rutaBD);
-
-        try (ServerSocket serverSocket = new ServerSocket(puerto)) {
+        
+        try (ServerSocket serverSocket = SSLServerSocketFactory.getDefault().createServerSocket(puerto)) {
             System.out.println("==================================================");
             System.out.println("[AUTH] Servidor de Autenticación iniciado");
             System.out.println("[AUTH] Escuchando en puerto: " + puerto);

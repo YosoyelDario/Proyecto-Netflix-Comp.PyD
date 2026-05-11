@@ -140,7 +140,7 @@ public class ServidorSubtitulos {
                 contador++;
 
                 // Sincronizar: un subtítulo cada 2 segundos
-                Thread.sleep(2000);
+                //Thread.sleep(2000);
             }
 
             out.println("FIN_SUBTITULOS");

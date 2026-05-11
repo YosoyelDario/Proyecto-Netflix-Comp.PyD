@@ -10,6 +10,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.List;
+import javax.net.ssl.SSLSocketFactory;
 
 /**
  * Handler - Procesa UNA petición del Gateway ZUUL (o cliente directo).
@@ -72,7 +73,7 @@ public class Handler implements Runnable {
             String comando = peticion.comando.toUpperCase();
 
             System.out.println(
-                "[" + hilo + "] " + ipCliente + " -> " + comando +
+                "[" + hilo + "] " + peticion.ipOrigen + " (vía Gateway) -> " + comando +
                 (peticion.parametro.isEmpty() ? "" : " ('" + peticion.parametro + "')")
             );
 
@@ -124,6 +125,8 @@ public class Handler implements Runnable {
     // =========================================================================
 
     private void procesarLogin(Peticion peticion, ObjectOutputStream out, String hilo) throws IOException {
+        System.setProperty("javax.net.ssl.trustStore", "data/keystore.jks");
+        System.setProperty("javax.net.ssl.trustStorePassword", "123456");
         Respuesta respuestaAuth = consultarServidorB(peticion);
 
         if (respuestaAuth == null) {
@@ -279,8 +282,8 @@ public class Handler implements Runnable {
 
     private Respuesta consultarServidorB(Peticion peticion) {
         try (
-            Socket socketAuth = new Socket(hostAuth, puertoAuth);
-            ObjectOutputStream outAuth = new ObjectOutputStream(socketAuth.getOutputStream());
+            Socket socketAuth = SSLSocketFactory.getDefault().createSocket(hostAuth, puertoAuth);
+        ObjectOutputStream outAuth = new ObjectOutputStream(socketAuth.getOutputStream());
             ObjectInputStream inAuth = new ObjectInputStream(socketAuth.getInputStream())
         ) {
             outAuth.writeObject(peticion);

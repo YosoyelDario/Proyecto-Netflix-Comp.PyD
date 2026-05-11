@@ -3,7 +3,7 @@ package servidores;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-
+import javax.net.ssl.SSLServerSocketFactory;
 /**
  * Servidor A - Catálogo y Búsqueda (Puerto 5000).
  *
@@ -26,6 +26,10 @@ public class ServidorCatalogo {
     private RepositorioPeliculas repositorio;
 
     public static void main(String[] args) {
+        System.setProperty("javax.net.ssl.keyStore", "data/keystore.jks");
+    System.setProperty("javax.net.ssl.keyStorePassword", "123456");
+    System.setProperty("javax.net.ssl.trustStore", "data/keystore.jks");
+    System.setProperty("javax.net.ssl.trustStorePassword", "123456");
         ServidorCatalogo servidor = new ServidorCatalogo();
 
         if (args.length >= 1) servidor.puerto = Integer.parseInt(args[0]);
@@ -38,7 +42,8 @@ public class ServidorCatalogo {
     }
 
     public void start() {
-        try (ServerSocket serverSocket = new ServerSocket(puerto)) {
+        
+        try (ServerSocket serverSocket = SSLServerSocketFactory.getDefault().createServerSocket(puerto)) {
             System.out.println("==================================================");
             System.out.println("[CATALOGO] Servidor A - Catálogo y Búsqueda");
             System.out.println("[CATALOGO] Escuchando en puerto: " + puerto);

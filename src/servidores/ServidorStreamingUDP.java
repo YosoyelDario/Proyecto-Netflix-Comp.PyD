@@ -1,7 +1,10 @@
 package servidores;
 
 import compartido.FragmentoVideo;
-
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
 import java.net.DatagramPacket;
@@ -122,7 +125,7 @@ public class ServidorStreamingUDP {
                 System.out.println("[STREAMING] Enviado: " + fragmento);
 
                 // Simular tasa de transmisión (1 fragmento por segundo)
-                Thread.sleep(1000);
+                // Thread.sleep(1000);
             }
 
             // Enviar señal de fin de streaming
