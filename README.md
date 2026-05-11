@@ -24,4 +24,5 @@ java -cp build/classes servidores.ServidorSubtitulos
 
 # Terminal 6: Ejecutar clientes con ip's distintas
 - java -cp build/classes cliente.ClienteInteractivo localhost 4000 localhost 6000 localhost 7000 127.0.0.3
+- --------------------------------------------------------------------------------------------------------
 - java -cp build/classes cliente.ClienteInteractivo localhost 4000 localhost 6000 localhost 7000 127.0.0.2
