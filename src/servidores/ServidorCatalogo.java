@@ -5,20 +5,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
 import javax.net.ssl.SSLServerSocketFactory;
-/**
- * Servidor A - Catálogo y Búsqueda (Puerto 5000).
- *
- * Recibe conexiones TCP del Gateway ZUUL (o directas del cliente).
- * Cada conexión trae una sola petición que se procesa en un hilo
- * independiente (concurrencia: un hilo por petición).
- *
- * Comunicación:
- * - TCP desde Gateway ZUUL (o cliente directo)
- * - TCP hacia Servidor B (Autenticación) para validar tokens
- * - Lee BD Metadatos desde peliculas.txt
- */
 public class ServidorCatalogo {
     private int puerto = 5000;
 
@@ -59,7 +46,6 @@ public class ServidorCatalogo {
                 Socket clientSocket = serverSocket.accept();
                 String ipCliente = clientSocket.getInetAddress().getHostAddress();
 
-                // Un hilo por petición recibida (concurrencia)
                 pool.execute(
         new Handler(clientSocket, repositorio, ipCliente, hostAuth, puertoAuth)
     );

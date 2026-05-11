@@ -19,10 +19,6 @@ public class RepositorioUsuarios {
         cargarDesdeArchivo();
     }
 
-    /**
-     * Carga usuarios desde el archivo de texto (BD Usuarios).
-     * Formato: username|password|plan|suscripcionActiva
-     */
     private void cargarDesdeArchivo() {
         try (BufferedReader br = new BufferedReader(new FileReader(archivoRuta))) {
             String linea;
@@ -56,10 +52,6 @@ public class RepositorioUsuarios {
         }
     }
 
-    /**
-     * Autentica un usuario contra la BD (Fase 1 - Autenticación).
-     * Retorna el usuario si las credenciales son válidas, null si no.
-     */
     public synchronized Usuario autenticar(String username, String password) {
         if (username == null || password == null) {
             return null;

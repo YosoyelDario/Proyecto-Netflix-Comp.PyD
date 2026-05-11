@@ -15,22 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.net.ssl.SSLServerSocketFactory;
 
-/**
- * Servidor C - Subtítulos (Puerto 7000).
- *
- * Responsabilidades:
- * - Recibir solicitudes de subtítulos vía Gateway ZUUL (SSL/TCP)
- * - Buscar archivo .srt correspondiente en BD Subtítulos
- * - Enviar subtítulos como objetos serializados (Respuesta)
- * - Si el idioma no existe, ofrecer idiomas disponibles
- *
- * Comunicación:
- * - SSL/TCP desde Gateway ZUUL (Control Plane)
- * - Protocolo: recibe Peticion, responde Respuesta (marshalling)
- *
- * Fallo independiente: si este servidor cae, el streaming
- * de video continúa sin subtítulos (el cliente maneja el error).
- */
+
 public class ServidorSubtitulos {
     private static int puerto = 7000;
     private static String rutaSubtitulos = "data/subtitulos";
@@ -68,12 +53,6 @@ public class ServidorSubtitulos {
         }
     }
 
-    /**
-     * Atiende una petición del Gateway ZUUL usando protocolo de objetos.
-     * Comando: SOLICITAR_SUBTITULOS
-     * Parámetro: "pelicula:idioma"
-     * Respuesta: OK con lista de líneas, o error correspondiente.
-     */
     private static void atenderPeticion(Socket cliente, String ipCliente) {
         String hilo = Thread.currentThread().getName();
 
@@ -100,7 +79,6 @@ public class ServidorSubtitulos {
                 return;
             }
 
-            // Parámetro esperado: "pelicula:idioma"
             String parametro = peticion.parametro;
             if (parametro == null || parametro.trim().isEmpty()) {
                 out.writeObject(new Respuesta("400", "Solicitud vacía."));
@@ -114,19 +92,16 @@ public class ServidorSubtitulos {
 
             System.out.println("[" + hilo + "] Buscando: " + pelicula + "_" + idioma + ".srt");
 
-            // Buscar archivo .srt
             String nombreArchivo = pelicula + "_" + idioma + ".srt";
             File archivo = new File(rutaSubtitulos, nombreArchivo);
 
             if (archivo.exists()) {
-                // Subtítulos encontrados -> leer y enviar como lista serializada
                 ArrayList<String> lineas = leerSubtitulos(archivo);
                 out.writeObject(new Respuesta("OK", lineas));
                 out.flush();
                 System.out.println("[" + hilo + "] Enviados: " + nombreArchivo + " (" + lineas.size() + " líneas)");
 
             } else {
-                // Idioma no disponible -> buscar alternativas
                 List<String> idiomasDisponibles = buscarIdiomasDisponibles(pelicula);
 
                 if (idiomasDisponibles.isEmpty()) {
@@ -151,10 +126,6 @@ public class ServidorSubtitulos {
         }
     }
 
-    /**
-     * Lee todas las líneas no vacías de un archivo .srt.
-     * Retorna una ArrayList (Serializable) para enviar vía ObjectOutputStream.
-     */
     private static ArrayList<String> leerSubtitulos(File archivo) {
         ArrayList<String> lineas = new ArrayList<>();
 
@@ -175,10 +146,6 @@ public class ServidorSubtitulos {
         return lineas;
     }
 
-    /**
-     * Busca qué idiomas están disponibles para una película.
-     * Escanea los archivos en la carpeta de subtítulos.
-     */
     private static List<String> buscarIdiomasDisponibles(String pelicula) {
         List<String> idiomas = new ArrayList<>();
 
@@ -208,9 +175,6 @@ public class ServidorSubtitulos {
         return idiomas;
     }
 
-    /**
-     * Lista los archivos .srt disponibles al iniciar el servidor.
-     */
     private static void listarArchivosDisponibles() {
         File carpeta = new File(rutaSubtitulos);
 

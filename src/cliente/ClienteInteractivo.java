@@ -20,24 +20,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ClienteInteractivo {
-    // Control Plane (TCP)
     private static String hostGateway = "localhost";
     private static int puertoGateway = 4000;
-
-    // Data Plane (UDP Directo)
     private static String hostUDP = "localhost";
     private static int puertoUDP = 6000;
     private static String ipLocal = "127.0.0.1";
-    // Estado de sesión
     private static boolean sesionIniciada = false;
     private static String tokenSesion = null;
-
-    // Configuración de reintentos (Modelo de Fallos: Omisión)
     private static final int MAX_REINTENTOS = 3;
     private static final int TIMEOUT_CONEXION_MS = 5000;
     private static final int ESPERA_ENTRE_REINTENTOS_MS = 2000;
-
-    // Búferes de reproducción (Rúbrica 2.2: Concurrencia)
     private static final ConcurrentLinkedQueue<FragmentoVideo> bufferVideo = new ConcurrentLinkedQueue<>();
     private static final ConcurrentLinkedQueue<String> bufferSubtitulos = new ConcurrentLinkedQueue<>();
     private static final AtomicBoolean recepcionVideoCompletada = new AtomicBoolean(false);
@@ -52,7 +44,7 @@ public class ClienteInteractivo {
         while (ejecutando) {
             System.out.println("\n--- NETFLIX INTERACTIVO ---");
             if (!sesionIniciada) {
-                // Rúbrica 2.3 / README: Restricción de acceso sin login
+                
                 System.out.println("1. Iniciar sesión");
                 System.out.println("2. Salir");
                 System.out.print("Selección: ");
@@ -110,7 +102,7 @@ public class ClienteInteractivo {
         if (resp != null && resp.codigo.equals("STREAM_INFO")) {
             Pelicula pelicula = (Pelicula) resp.payload;
             
-            // README: Opción de habilitar/deshabilitar subtítulos
+            
             System.out.print("  ¿Desea activar subtítulos? (s/n): ");
             String activar = scanner.nextLine().trim().toLowerCase();
             String idioma = "none";
@@ -132,7 +124,7 @@ public class ClienteInteractivo {
         bufferSubtitulos.clear();
         recepcionVideoCompletada.set(false);
 
-        // Productores: Descarga paralela
+        
         Thread tVideo = new Thread(() -> descargarVideoUDP(pelicula));
         tVideo.start();
 
@@ -147,19 +139,19 @@ public class ClienteInteractivo {
     private static void ejecutarRelojMaestro(Pelicula pelicula) {
         System.out.println("\n--- REPRODUCIENDO: " + pelicula.titulo + " ---");
 
-        int segundosPorFragmento = 2; // Sincronizado con Pelicula.java
+        int segundosPorFragmento = 2; 
         String subActual = null;
         int tiempoSub = -1;
         int reloj = 0;
         
 
         while (!recepcionVideoCompletada.get() || !bufferVideo.isEmpty()) {
-            // Sincronía de Video
+            
             if (reloj % segundosPorFragmento == 0 && !bufferVideo.isEmpty()) {
                 System.out.println("  [" + String.format("%02d:%02d", reloj/60, reloj%60) + "] " + bufferVideo.poll());
             }
 
-            // Sincronía de Subtítulos
+            
             if (subActual == null && !bufferSubtitulos.isEmpty()) {
                 subActual = bufferSubtitulos.poll();
                 tiempoSub = extraerSegundos(subActual);
@@ -171,7 +163,7 @@ public class ClienteInteractivo {
             }
 
             try {
-                Thread.sleep(1000); // 1 tick = 1 segundo
+                Thread.sleep(1000); 
                 reloj++;
             } catch (InterruptedException e) { break; }
         }
@@ -189,7 +181,7 @@ public class ClienteInteractivo {
             while (true) {
                 DatagramPacket p = new DatagramPacket(buffer, buffer.length);
                 socket.receive(p);
-                FragmentoVideo f = deserializarFragmento(p.getData(), p.getLength()); // Marshalling (Rúbrica 2.1)
+                FragmentoVideo f = deserializarFragmento(p.getData(), p.getLength()); 
                 if (f == null || f.esFin) break;
                 bufferVideo.add(f);
             }
@@ -201,14 +193,14 @@ public class ClienteInteractivo {
         Respuesta resp = enviarAlGateway(new Peticion("SOLICITAR_SUBTITULOS", pelicula.titulo + ":" + idioma));
 
         if (resp == null) {
-            // Fallo parcial: subtítulos no disponibles, el video continúa
+            
             System.err.println("  [Aviso] Subtítulos no disponibles.");
             return;
         }
 
         switch (resp.codigo) {
             case "OK":
-                // Subtítulos recibidos como lista serializada
+                
                 if (resp.payload instanceof java.util.List) {
                     @SuppressWarnings("unchecked")
                     java.util.List<String> lineas = (java.util.List<String>) resp.payload;
@@ -228,7 +220,7 @@ public class ClienteInteractivo {
                 break;
 
             default:
-                // Fallo parcial: error inesperado, el video continúa
+                
                 System.err.println("  [Aviso] Error en subtítulos: [" + resp.codigo + "] " + resp.payload);
                 break;
         }

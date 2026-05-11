@@ -19,10 +19,6 @@ public class RepositorioPeliculas {
         cargarDesdeArchivo();
     }
 
-    /**
-     * Carga películas desde el archivo de texto (BD Metadatos).
-     * Formato: id|titulo|fragmentos|sinopsis
-     */
     private void cargarDesdeArchivo() {
         try (BufferedReader br = new BufferedReader(new FileReader(archivoRuta))) {
             String linea;
@@ -94,9 +90,7 @@ public class RepositorioPeliculas {
         return resultados;
     }
 
-    /**
-     * Busca una película por su ID numérico.
-     */
+
     public synchronized Pelicula buscarPorId(int id) {
         return peliculas.get(id);
     }

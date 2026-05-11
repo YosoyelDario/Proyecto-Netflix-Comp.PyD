@@ -13,26 +13,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.net.ssl.SSLServerSocketFactory;
 
-/**
- * Servidor B - Perfiles y Autenticación (Puerto 5100).
- *
- * Responsabilidades:
- * - Autenticar usuarios contra la BD (usuarios.txt)
- * - Generar y validar tokens de sesión
- * - Consultar datos de perfil
- *
- * Protocolo de comandos:
- * - LOGIN -> autentica y devuelve token
- * - VALIDAR_TOKEN -> verifica si un token es válido
- * - PERFIL -> devuelve datos del usuario asociado al token
- */
 public class ServidorAutenticacion {
     private static int puerto = 5100;
     private static String rutaBD = "data/usuarios.txt";
 
     private static RepositorioUsuarios repoUsuarios;
-
-    // Almacén de sesiones activas: token -> Usuario
     private static final Map<String, Usuario> sesionesActivas = new ConcurrentHashMap<>();
 
     public static void main(String[] args) {
@@ -119,10 +104,6 @@ public class ServidorAutenticacion {
         }
     }
 
-    /**
-     * Fase 1 - Autenticación.
-     * Consulta BD Usuarios, genera token si es exitoso.
-     */
     private static void procesarLogin(Peticion peticion, ObjectOutputStream out, String hilo) throws Exception {
         String[] partes = peticion.parametro.split(":");
 
@@ -134,8 +115,6 @@ public class ServidorAutenticacion {
 
         String username = partes[0];
         String password = partes[1];
-
-        // Consultar credenciales en BD Usuarios
         Usuario usuario = repoUsuarios.autenticar(username, password);
 
         if (usuario == null) {
@@ -145,21 +124,15 @@ public class ServidorAutenticacion {
             return;
         }
 
-        // Generar token de sesión
         String token = UUID.randomUUID().toString();
         sesionesActivas.put(token, usuario);
 
         System.out.println("[" + hilo + "] Usuario autenticado: " + usuario.username + " | Token: " + token.substring(0, 8) + "...");
 
-        // Enviar token + datos del usuario
         out.writeObject(new Respuesta("LOGIN_OK", token + "|" + usuario.username + "|" + usuario.plan + "|" + usuario.suscripcionActiva));
         out.flush();
     }
 
-    /**
-     * Valida si un token de sesión es activo.
-     * Usado por otros servidores para verificar autorización.
-     */
     private static void validarToken(Peticion peticion, ObjectOutputStream out, String hilo) throws Exception {
         String token = peticion.parametro;
 
@@ -177,9 +150,6 @@ public class ServidorAutenticacion {
         System.out.println("[" + hilo + "] Token válido para: " + usuario.username);
     }
 
-    /**
-     * Retorna los datos de perfil asociados a un token.
-     */
     private static void obtenerPerfil(Peticion peticion, ObjectOutputStream out, String hilo) throws Exception {
         String token = peticion.parametro;
 

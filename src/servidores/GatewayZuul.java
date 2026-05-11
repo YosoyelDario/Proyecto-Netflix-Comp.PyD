@@ -31,15 +31,11 @@ import javax.net.ssl.SSLSocketFactory;
 public class GatewayZuul {
     private static int puerto = 4000;
 
-    // Servidor A - Catálogo y Búsqueda
+
     private static String hostServidorA = "localhost";
     private static int puertoServidorA = 5000;
-
-    // Servidor B - Perfiles y Autenticación
     private static String hostServidorB = "localhost";
     private static int puertoServidorB = 5100;
-
-    // Servidor C - Subtítulos
     private static String hostServidorC = "localhost";
     private static int puertoServidorC = 7000;
 
@@ -79,14 +75,6 @@ public class GatewayZuul {
         }
     }
 
-    /**
-     * Mantiene la conexión con el cliente y enruta cada petición
-     * al servidor interno correspondiente.
-     *
-     * La conexión con el backend se abre por petición (no persistente),
-     * lo que permite que los servidores internos se reinicien sin
-     * afectar la conexión del cliente con el Gateway.
-     */
     private static void manejarConexion(Socket clientSocket, String ipCliente) {
     String hilo = Thread.currentThread().getName();
 
@@ -94,7 +82,7 @@ public class GatewayZuul {
         ObjectOutputStream outCliente = new ObjectOutputStream(clientSocket.getOutputStream());
         ObjectInputStream inCliente = new ObjectInputStream(clientSocket.getInputStream())
     ) {
-        Object recibido = inCliente.readObject(); // solo UNA lectura
+        Object recibido = inCliente.readObject();
         
         if (!(recibido instanceof Peticion)) {
             outCliente.writeObject(new Respuesta("400", "Solicitud inválida."));
@@ -137,7 +125,6 @@ public class GatewayZuul {
         }
 
     } catch (java.net.SocketException e) {
-            // Captura de cierre abrupto de red
             System.err.println("[" + hilo + "] Desconexión forzosa detectada (Connection reset): " + ipCliente);
         } catch (EOFException e) {
             System.out.println("[" + hilo + "] Desconexión normal: " + ipCliente);
@@ -148,13 +135,6 @@ public class GatewayZuul {
         }
 }
 
-
-    /**
-     * Reenvía una petición al servidor interno y devuelve la respuesta al cliente.
-     *
-     * Abre una conexión TCP efímera al backend por cada petición.
-     * Si el servidor destino no está disponible, retorna Error 503.
-     */
 
 
     private static void reenviarPeticion(
@@ -169,11 +149,9 @@ public class GatewayZuul {
     ObjectOutputStream outBackend = new ObjectOutputStream(socketBackend.getOutputStream());
             ObjectInputStream inBackend = new ObjectInputStream(socketBackend.getInputStream())
         ) {
-            // Enviar petición al servidor interno
             outBackend.writeObject(peticion);
             outBackend.flush();
 
-            // Recibir respuesta del servidor interno
             Object respuesta = inBackend.readObject();
 
             if (respuesta instanceof Respuesta) {

@@ -1,0 +1,19 @@
+Para probar nuestro sistema, se ha de hacer lo siguiente:
+
+Requisitos -> Usar JDK 26
+Contar con una máquina, idealmente Windows, para ejecutar las instancias mediante PowerShell.
+
+Instrucciones de uso:
+
+Ejecutar el archivo compilar (ejecutar como PowerShell).
+
+Ejecutar el archivo Servidores (ejecutar como PowerShell).
+
+Ejecutar el archivo Usuario (ejecutar como PowerShell).
+
+Podrá visualizar que se abrieron un total de 6 ventanas de PowerShell, donde:
+
+5 son de Servidor/Gateway.
+1 para un cliente.
+
+Puede ejecutar múltiples clientes si así lo desea.

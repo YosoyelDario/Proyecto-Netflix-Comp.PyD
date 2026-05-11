@@ -120,9 +120,6 @@ public class Handler implements Runnable {
         }
     }
 
-    // =========================================================================
-    // FASE 1: AUTENTICACIÓN
-    // =========================================================================
 
     private void procesarLogin(Peticion peticion, ObjectOutputStream out, String hilo) throws IOException {
         System.setProperty("javax.net.ssl.trustStore", "data/keystore.jks");
@@ -146,9 +143,6 @@ public class Handler implements Runnable {
         }
     }
 
-    // =========================================================================
-    // FASE 2: CARGA DEL CATÁLOGO
-    // =========================================================================
 
     private void procesarVerCatalogo(Peticion peticion, ObjectOutputStream out, String hilo) throws IOException {
         String token = peticion.parametro;
@@ -172,12 +166,8 @@ public class Handler implements Runnable {
         }
     }
 
-    // =========================================================================
-    // FASE 3: BÚSQUEDA DE TÍTULO
-    // =========================================================================
 
     private void procesarBusqueda(Peticion peticion, ObjectOutputStream out, String hilo) throws IOException {
-        // Formato del parámetro: "token|query"
         String[] partes = peticion.parametro.split("\\|", 2);
         String token = partes[0];
         String query = partes.length > 1 ? partes[1] : "";
@@ -206,9 +196,6 @@ public class Handler implements Runnable {
         }
     }
 
-    // =========================================================================
-    // VER PERFIL
-    // =========================================================================
 
     private void procesarVerPerfil(Peticion peticion, ObjectOutputStream out, String hilo) throws IOException {
         String token = peticion.parametro;
@@ -224,12 +211,7 @@ public class Handler implements Runnable {
         System.out.println("[" + hilo + "] Perfil enviado.");
     }
 
-    // =========================================================================
-    // ELEGIR PELÍCULA (autorizar streaming - Función B)
-    // =========================================================================
-
     private void procesarElegirPelicula(Peticion peticion, ObjectOutputStream out, String hilo) throws IOException {
-        // Formato: "token|titulo"
         String[] partes = peticion.parametro.split("\\|", 2);
         String token = partes[0];
         String titulo = partes.length > 1 ? partes[1] : "";
@@ -254,10 +236,6 @@ public class Handler implements Runnable {
         out.writeObject(new Respuesta("STREAM_INFO", pelicula));
         System.out.println("[" + hilo + "] Streaming autorizado: " + pelicula.titulo);
     }
-
-    // =========================================================================
-    // MÉTODOS AUXILIARES
-    // =========================================================================
 
     private Usuario validarTokenConServidorB(String token, ObjectOutputStream out, String hilo) throws IOException {
         if (token == null || token.trim().isEmpty()) {

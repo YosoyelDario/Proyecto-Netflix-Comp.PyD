@@ -7,7 +7,7 @@ public class Peticion implements Serializable {
 
     public String comando;
     public String parametro;
-    public String ipOrigen; // Atributo para simular X-Forwarded-For
+    public String ipOrigen; 
 
     public Peticion(String comando, String parametro) {
         this.comando = comando;

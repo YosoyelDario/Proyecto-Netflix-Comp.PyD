@@ -3,16 +3,6 @@ package servidores;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Cache Web del Servidor de Streaming.
- *
- * Almacena en memoria los datos de video descargados del Backend AWS
- * para evitar descargas repetidas (patrón Cache-Aside).
- *
- * Simula el comportamiento de un CDN/Open Connect Appliance:
- * - CACHE HIT: video ya descargado, se sirve desde memoria (rápido)
- * - CACHE MISS: video no en memoria, se descarga del backend (lento)
- */
 
 public class CacheWeb {
     private final ConcurrentHashMap<String, byte[]> almacenamiento = new ConcurrentHashMap<>();
@@ -24,10 +14,6 @@ public class CacheWeb {
         this.backend = new BackendAWS(rutaVideos);
     }
 
-    /**
-     * Obtiene los datos de video. Si están en caché los sirve directo;
-     * si no, los descarga del backend y los cachea.
-     */
     public byte[] obtenerVideo(String pelicula, int fragmentos) {
         if (almacenamiento.containsKey(pelicula)) {
             hits.incrementAndGet();
