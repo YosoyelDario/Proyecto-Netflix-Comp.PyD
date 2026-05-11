@@ -10,20 +10,25 @@ public class RepositorioUsuarios {
     public RepositorioUsuarios() {
         // Simulando datos de inicio de sesión y perfiles
         credenciales.put("vicente", "1234");
-        perfiles.put("vicente", new Usuario("Vicente", "Plan Premium - Chile", Arrays.asList("Matrix", "Interstellar")));
-        perfiles.put("ana", new Usuario("Ana", "Plan Básico - Chile", Arrays.asList("Inception")));
-        perfiles.put("luis", new Usuario("Luis", "Plan Estándar - Chile", Arrays.asList("Matrix", "Inception")));
-        perfiles.put("araya", new Usuario("Araya", "Plan Premium - Chile", Arrays.asList("Interstellar")));
-        perfiles.put("maria", new Usuario("Maria", "Plan Básico - Chile", Arrays.asList("Matrix")));
-        perfiles.put("jose", new Usuario("Jose", "Plan Estándar - Chile", Arrays.asList("Inception", "Interstellar"))) ;
+        perfiles.put("vicente", new Usuario("Vicente", "1234", "Plan Premium - Chile", true));
+        perfiles.put("ana", new Usuario("Ana", "5678", "Plan Básico - Chile", true));
+        perfiles.put("luis", new Usuario("Luis", "9012", "Plan Estándar - Chile", true));
+        perfiles.put("araya", new Usuario("Araya", "3456", "Plan Premium - Chile", true));
+        perfiles.put("maria", new Usuario("Maria", "7890", "Plan Básico - Chile", true));
+        perfiles.put("jose", new Usuario("Jose", "2345", "Plan Estándar - Chile", true));
     }
 
-    public synchronized boolean validarLogin(String usuario, String password) {
-        String pwd = credenciales.get(usuario.toLowerCase());
-        return pwd != null && pwd.equals(password);
+    public synchronized Usuario autenticar(String user, String password) {
+        Usuario u = perfiles.get(user.toLowerCase());
+        String pwd = credenciales.get(user.toLowerCase());
+        if(u != null && pwd != null && pwd.equals(password)) { // verificar credenciales
+            return u;
+        }
+        return null;
     }
 
     public synchronized Usuario getPerfil(String user) {
         return perfiles.get(user.toLowerCase());
     }
 }
+

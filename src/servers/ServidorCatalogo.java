@@ -3,10 +3,10 @@ package servers;
 import compartido.Pelicula;
 import compartido.Peticion;
 import compartido.Respuesta;
+import compartido.RepositorioPeliculas;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.*;
 
 public class ServidorCatalogo {
     private static final int PORT = 5000;
@@ -19,7 +19,7 @@ public class ServidorCatalogo {
     public void start() {
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             System.out.println("==================================================");
-            System.out.println("[SISTEMA] Servidor de Control (TCP) INICIADO");
+            System.out.println("[SISTEMA] Servidor de Catalogo (TCP) INICIADO");
             System.out.println("[SISTEMA] Escuchando en puerto: " + PORT);
             System.out.println("==================================================");
             
@@ -29,45 +29,28 @@ public class ServidorCatalogo {
                 System.out.println("\n[CONEXION] Nuevo cliente detectado -> IP: " + ipCliente);
                 
                 // Creación del hilo. Se nombra el hilo para seguimiento.
-                Thread hiloCliente = new Thread(new Handler(clientSocket, repositorio, ipCliente));
+                System.out.println("\n[CONEXION] Solicitud de catálogo desde -> IP: " + ipCliente);
+                
+                // Adaptación: Usamos un Handler especializado solo en catálogo
+                Thread hiloCliente = new Thread(new CatalogoHandler(clientSocket, repositorio, ipCliente));
+                hiloCliente.start();
                 hiloCliente.start();
             }
         } catch (IOException e) {
-            System.err.println("[ERROR CRÍTICO] Fallo en Servidor TCP: " + e.getMessage());
+            System.err.println("[ERROR CRÍTICO] Fallo en Servidor Catalogo: " + e.getMessage());
         }
     }
 }
 
 /**
- * Capa de Almacenamiento (Simulación de base de datos)
+ * Gestiona únicamente la Función A (Catálogo) y el paso a la Función B (Streaming)
  */
-class RepositorioPeliculas {
-    private final Map<String, Pelicula> db = new HashMap<>();
-
-    public RepositorioPeliculas() {
-        db.put("matrix", new Pelicula("Matrix", 10));
-        db.put("inception", new Pelicula("Inception", 15));
-        db.put("interstellar", new Pelicula("Interstellar", 7));
-    }
-
-    public synchronized List<Pelicula> getLista() {
-        return new ArrayList<>(db.values());
-    }
-
-    public synchronized Pelicula buscar(String titulo) {
-        return db.get(titulo.toLowerCase());
-    }
-}
-
-/**
- * Gestor de hilos con Marshalling de objetos y Trazas
- */
-class Handler implements Runnable {
+class CatalogoHandler implements Runnable {
     private final Socket socket;
     private final RepositorioPeliculas repo;
     private final String ipCliente;
 
-    public Handler(Socket socket, RepositorioPeliculas repo, String ipCliente) {
+    public CatalogoHandler(Socket socket, RepositorioPeliculas repo, String ipCliente) {
         this.socket = socket;
         this.repo = repo;
         this.ipCliente = ipCliente;
@@ -76,52 +59,47 @@ class Handler implements Runnable {
     @Override
     public void run() {
         String nombreHilo = Thread.currentThread().getName();
-        System.out.println("[" + nombreHilo + "] Asignado para procesar peticiones de: " + ipCliente);
-
         try (ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
              ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
 
             Object recibido;
             while ((recibido = in.readObject()) != null) {
-                if (!(recibido instanceof Peticion)) continue;
-                
-                Peticion p = (Peticion) recibido;
-                String cmd = p.comando.toUpperCase();
-                
-                System.out.println("[" + nombreHilo + "] " + ipCliente + " ejecutó: " + cmd + (p.parametro.isEmpty() ? "" : " -> '" + p.parametro + "'"));
+                if (recibido instanceof Peticion) {
+                    Peticion p = (Peticion) recibido;
+                    String cmd = p.comando.toUpperCase();
+                    
+                    switch (cmd) {
+                        case "VER_CATALOGO":
+                            // Enviamos la lista completa de películas (Marshalling de objetos)
+                            out.writeObject(new Respuesta("OK", repo.obtenerTodas()));
+                            System.out.println("[" + nombreHilo + "] Catálogo enviado a " + ipCliente);
+                            break;
 
-                switch (cmd) {
-                    case "VER_CATALOGO":
-                        out.writeObject(new Respuesta("OK", repo.getLista()));
-                        System.out.println("[" + nombreHilo + "] Respuesta enviada (Catálogo).");
-                        break;
-
-                    case "ELEGIR_PELICULA":
-                        Pelicula pelicula = repo.buscar(p.parametro);
-                        if (pelicula != null) {
-                            out.writeObject(new Respuesta("STREAM_INFO", pelicula));
-                            System.out.println("[" + nombreHilo + "] Derivación a Servidor Streaming (UDP) autorizada.");
-                        } else {
-                            out.writeObject(new Respuesta("ERROR", "Película no encontrada"));
-                            System.out.println("[" + nombreHilo + "] Error de búsqueda: Película no existe.");
-                        }
-                        break;
-
-                    case "SALIR":
-                        System.out.println("[" + nombreHilo + "] Cliente solicitó cierre de sesión (SALIR).");
-                        return;
+                        case "ELEGIR_PELICULA":
+                            Pelicula pelicula = repo.buscar(p.parametro);
+                            if (pelicula != null) {
+                                // Aquí enviamos la info técnica necesaria para el streaming UDP
+                                out.writeObject(new Respuesta("STREAM_INFO", pelicula));
+                                System.out.println("[" + nombreHilo + "] Derivación a UDP autorizada: " + pelicula.titulo);
+                            } else {
+                                out.writeObject(new Respuesta("ERROR", "Película no encontrada"));
+                            }
+                            break;
+                            
+                        case "SALIR":
+                            return;
+                    }
                 }
                 out.flush();
             }
         } catch (EOFException e) {
-            System.out.println("[" + nombreHilo + "] Desconexión normal (EOF) de: " + ipCliente);
+            // Desconexión normal del cliente
         } catch (Exception e) {
-            System.err.println("[" + nombreHilo + "] Error de comunicación con " + ipCliente + " -> " + e.getMessage());
+            System.err.println("[CATALOGO] Error de comunicación con " + ipCliente + ": " + e.getMessage());
         } finally {
-            try { 
-                socket.close(); 
-                System.out.println("[" + nombreHilo + "] Recursos liberados y socket cerrado para: " + ipCliente);
-            } catch (IOException ignored) {}
+            try { socket.close(); } catch (IOException ignored) {}
         }
     }
 }
+
+
