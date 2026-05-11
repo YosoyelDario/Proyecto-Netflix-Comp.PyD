@@ -31,7 +31,7 @@ public class CacheWeb {
         if (almacenamiento.containsKey(pelicula)) {
             hits.incrementAndGet();
             System.out.println("[CACHE] HIT: '" + pelicula + "' servido desde memoria. (Hits: " + hits + " / Misses: " + misses + ")");
-            return almacenamiento.get(pelicula);
+            return almacenamiento.computeIfAbsent(pelicula, key -> backend.descargarVideoHTTPS(key, fragmentos));
         }
 
         misses.incrementAndGet();

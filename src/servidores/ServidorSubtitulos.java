@@ -1,41 +1,52 @@
 package servidores;
 
+import compartido.Peticion;
+import compartido.Respuesta;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import javax.net.ssl.SSLServerSocketFactory;
 
 /**
- * Servidor C - Subtítulos TCP (Puerto 7000).
+ * Servidor C - Subtítulos (Puerto 7000).
  *
  * Responsabilidades:
- * - Recibir solicitudes de subtítulos por TCP (movieID, idioma)
+ * - Recibir solicitudes de subtítulos vía Gateway ZUUL (SSL/TCP)
  * - Buscar archivo .srt correspondiente en BD Subtítulos
- * - Enviar subtítulos línea por línea sincronizados con el video
+ * - Enviar subtítulos como objetos serializados (Respuesta)
  * - Si el idioma no existe, ofrecer idiomas disponibles
  *
  * Comunicación:
- * - TCP con Clientes (directo, paralelo al streaming UDP)
+ * - SSL/TCP desde Gateway ZUUL (Control Plane)
+ * - Protocolo: recibe Peticion, responde Respuesta (marshalling)
  *
  * Fallo independiente: si este servidor cae, el streaming
- * de video continúa sin subtítulos.
+ * de video continúa sin subtítulos (el cliente maneja el error).
  */
 public class ServidorSubtitulos {
     private static int puerto = 7000;
     private static String rutaSubtitulos = "data/subtitulos";
 
     public static void main(String[] args) {
+        System.setProperty("javax.net.ssl.keyStore", "data/keystore.jks");
+        System.setProperty("javax.net.ssl.keyStorePassword", "123456");
+        System.setProperty("javax.net.ssl.trustStore", "data/keystore.jks");
+        System.setProperty("javax.net.ssl.trustStorePassword", "123456");
+
         if (args.length >= 1) puerto = Integer.parseInt(args[0]);
         if (args.length >= 2) rutaSubtitulos = args[1];
 
-        try (ServerSocket serverSocket = new ServerSocket(puerto)) {
+        try (ServerSocket serverSocket = SSLServerSocketFactory.getDefault().createServerSocket(puerto)) {
             System.out.println("==================================================");
-            System.out.println("[SUBTITULOS] Servidor de Subtítulos TCP iniciado");
+            System.out.println("[SUBTITULOS] Servidor de Subtítulos SSL/TCP iniciado");
             System.out.println("[SUBTITULOS] Escuchando en puerto: " + puerto);
             System.out.println("[SUBTITULOS] BD Subtítulos: " + rutaSubtitulos);
             System.out.println("[SUBTITULOS] Archivos disponibles:");
@@ -46,9 +57,9 @@ public class ServidorSubtitulos {
                 Socket cliente = serverSocket.accept();
                 String ipCliente = cliente.getInetAddress().getHostAddress();
 
-                System.out.println("\n[SUBTITULOS] Cliente conectado: " + ipCliente);
+                System.out.println("\n[SUBTITULOS] Conexión desde: " + ipCliente);
 
-                Thread hiloCliente = new Thread(() -> atenderCliente(cliente, ipCliente));
+                Thread hiloCliente = new Thread(() -> atenderPeticion(cliente, ipCliente));
                 hiloCliente.start();
             }
 
@@ -58,55 +69,75 @@ public class ServidorSubtitulos {
     }
 
     /**
-     * Atiende a un cliente: recibe la solicitud (película:idioma),
-     * busca el archivo .srt y envía los subtítulos.
+     * Atiende una petición del Gateway ZUUL usando protocolo de objetos.
+     * Comando: SOLICITAR_SUBTITULOS
+     * Parámetro: "pelicula:idioma"
+     * Respuesta: OK con lista de líneas, o error correspondiente.
      */
-    private static void atenderCliente(Socket cliente, String ipCliente) {
+    private static void atenderPeticion(Socket cliente, String ipCliente) {
         String hilo = Thread.currentThread().getName();
 
         try (
-            BufferedReader inCliente = new BufferedReader(
-                new InputStreamReader(cliente.getInputStream())
-            );
-            PrintWriter out = new PrintWriter(cliente.getOutputStream(), true)
+            ObjectOutputStream out = new ObjectOutputStream(cliente.getOutputStream());
+            ObjectInputStream in = new ObjectInputStream(cliente.getInputStream())
         ) {
-            // Leer solicitud del cliente: "pelicula:idioma"
-            String solicitud = inCliente.readLine();
+            Object recibido = in.readObject();
 
-            if (solicitud == null || solicitud.trim().isEmpty()) {
-                out.println("ERROR:Solicitud vacía");
-                out.println("FIN_SUBTITULOS");
+            if (!(recibido instanceof Peticion)) {
+                out.writeObject(new Respuesta("400", "Petición inválida."));
+                out.flush();
                 return;
             }
 
-            System.out.println("[" + hilo + "] Solicitud: " + solicitud);
+            Peticion peticion = (Peticion) recibido;
+            String comando = peticion.comando.toUpperCase();
 
-            String[] partes = solicitud.split(":", 2);
+            System.out.println("[" + hilo + "] " + peticion.ipOrigen + " (vía Gateway) -> " + comando);
+
+            if (!comando.equals("SOLICITAR_SUBTITULOS")) {
+                out.writeObject(new Respuesta("400", "Comando no soportado por subtítulos: " + comando));
+                out.flush();
+                return;
+            }
+
+            // Parámetro esperado: "pelicula:idioma"
+            String parametro = peticion.parametro;
+            if (parametro == null || parametro.trim().isEmpty()) {
+                out.writeObject(new Respuesta("400", "Solicitud vacía."));
+                out.flush();
+                return;
+            }
+
+            String[] partes = parametro.split(":", 2);
             String pelicula = partes[0].trim().toLowerCase().replaceAll("\\s+", "_");
             String idioma = partes.length > 1 ? partes[1].trim().toLowerCase() : "es";
+
+            System.out.println("[" + hilo + "] Buscando: " + pelicula + "_" + idioma + ".srt");
 
             // Buscar archivo .srt
             String nombreArchivo = pelicula + "_" + idioma + ".srt";
             File archivo = new File(rutaSubtitulos, nombreArchivo);
 
             if (archivo.exists()) {
-                // Subtítulos encontrados -> enviar línea por línea
-                System.out.println("[" + hilo + "] Enviando: " + nombreArchivo);
-                enviarSubtitulos(archivo, out, hilo);
+                // Subtítulos encontrados -> leer y enviar como lista serializada
+                ArrayList<String> lineas = leerSubtitulos(archivo);
+                out.writeObject(new Respuesta("OK", lineas));
+                out.flush();
+                System.out.println("[" + hilo + "] Enviados: " + nombreArchivo + " (" + lineas.size() + " líneas)");
 
             } else {
                 // Idioma no disponible -> buscar alternativas
                 List<String> idiomasDisponibles = buscarIdiomasDisponibles(pelicula);
 
                 if (idiomasDisponibles.isEmpty()) {
-                    out.println("ERROR:No hay subtítulos disponibles para '" + pelicula + "'");
+                    out.writeObject(new Respuesta("404", "No hay subtítulos disponibles para '" + pelicula + "'"));
                     System.out.println("[" + hilo + "] Sin subtítulos para: " + pelicula);
                 } else {
-                    out.println("IDIOMA_NO_DISPONIBLE:Idiomas disponibles: " + String.join(", ", idiomasDisponibles));
-                    System.out.println("[" + hilo + "] Idioma '" + idioma + "' no disponible. Disponibles: " + idiomasDisponibles);
+                    out.writeObject(new Respuesta("IDIOMAS_DISPONIBLES",
+                        "Idioma '" + idioma + "' no disponible. Disponibles: " + String.join(", ", idiomasDisponibles)));
+                    System.out.println("[" + hilo + "] Idioma '" + idioma + "' no encontrado. Disponibles: " + idiomasDisponibles);
                 }
-
-                out.println("FIN_SUBTITULOS");
+                out.flush();
             }
 
         } catch (Exception e) {
@@ -115,42 +146,33 @@ public class ServidorSubtitulos {
         } finally {
             try {
                 cliente.close();
-            } catch (Exception ignored) {
+            } catch (IOException ignored) {
             }
         }
     }
 
     /**
-     * Lee el archivo .srt y envía cada línea con delay para
-     * sincronizar con la reproducción del video.
+     * Lee todas las líneas no vacías de un archivo .srt.
+     * Retorna una ArrayList (Serializable) para enviar vía ObjectOutputStream.
      */
-    private static void enviarSubtitulos(File archivo, PrintWriter out, String hilo) {
+    private static ArrayList<String> leerSubtitulos(File archivo) {
+        ArrayList<String> lineas = new ArrayList<>();
+
         try (BufferedReader br = new BufferedReader(new FileReader(archivo))) {
             String linea;
-            int contador = 0;
 
             while ((linea = br.readLine()) != null) {
                 linea = linea.trim();
-
-                if (linea.isEmpty()) {
-                    continue;
+                if (!linea.isEmpty()) {
+                    lineas.add(linea);
                 }
-
-                out.println(linea);
-                contador++;
-
-                // Sincronizar: un subtítulo cada 2 segundos
-                //Thread.sleep(2000);
             }
 
-            out.println("FIN_SUBTITULOS");
-            System.out.println("[" + hilo + "] Subtítulos finalizados (" + contador + " líneas).");
-
         } catch (Exception e) {
-            System.err.println("[" + hilo + "] Error leyendo .srt: " + e.getMessage());
-            out.println("ERROR:Error interno al cargar subtítulos");
-            out.println("FIN_SUBTITULOS");
+            System.err.println("[SUBTITULOS] Error leyendo .srt: " + e.getMessage());
         }
+
+        return lineas;
     }
 
     /**
@@ -176,7 +198,6 @@ public class ServidorSubtitulos {
             String nombre = f.getName();
 
             if (nombre.startsWith(pelicula + "_") && nombre.endsWith(".srt")) {
-                // Extraer idioma: "matrix_es.srt" -> "es"
                 String idioma = nombre
                     .replace(pelicula + "_", "")
                     .replace(".srt", "");

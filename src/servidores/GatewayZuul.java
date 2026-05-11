@@ -23,9 +23,10 @@ import javax.net.ssl.SSLSocketFactory;
  * Enrutamiento:
  * - LOGIN, VALIDAR_TOKEN, PERFIL  ->  Servidor B (Autenticación)
  * - VER_CATALOGO, BUSCAR, ELEGIR_PELICULA, VER_PERFIL, SALIR  ->  Servidor A (Catálogo)
+ * - SOLICITAR_SUBTITULOS  ->  Servidor C (Subtítulos)
  *
- * El streaming UDP y los subtítulos TCP van directo al cliente
- * (Data Plane), no pasan por este Gateway (Control Plane).
+ * El streaming UDP va directo al cliente (Data Plane),
+ * no pasa por este Gateway (Control Plane).
  */
 public class GatewayZuul {
     private static int puerto = 4000;
@@ -38,6 +39,10 @@ public class GatewayZuul {
     private static String hostServidorB = "localhost";
     private static int puertoServidorB = 5100;
 
+    // Servidor C - Subtítulos
+    private static String hostServidorC = "localhost";
+    private static int puertoServidorC = 7000;
+
     public static void main(String[] args) {
         System.setProperty("javax.net.ssl.keyStore", "data/keystore.jks");
     System.setProperty("javax.net.ssl.keyStorePassword", "123456");
@@ -48,12 +53,15 @@ public class GatewayZuul {
         if (args.length >= 3) puertoServidorA = Integer.parseInt(args[2]);
         if (args.length >= 4) hostServidorB = args[3];
         if (args.length >= 5) puertoServidorB = Integer.parseInt(args[4]);
+        if (args.length >= 6) hostServidorC = args[5];
+        if (args.length >= 7) puertoServidorC = Integer.parseInt(args[6]);
         try (ServerSocket serverSocket = SSLServerSocketFactory.getDefault().createServerSocket(puerto)) {
             System.out.println("==================================================");
             System.out.println("[GATEWAY] Gateway ZUUL iniciado");
             System.out.println("[GATEWAY] Escuchando en puerto: " + puerto);
-            System.out.println("[GATEWAY] Servidor A (Catálogo): " + hostServidorA + ":" + puertoServidorA);
-            System.out.println("[GATEWAY] Servidor B (Auth):     " + hostServidorB + ":" + puertoServidorB);
+            System.out.println("[GATEWAY] Servidor A (Catálogo):    " + hostServidorA + ":" + puertoServidorA);
+            System.out.println("[GATEWAY] Servidor B (Auth):        " + hostServidorB + ":" + puertoServidorB);
+            System.out.println("[GATEWAY] Servidor C (Subtítulos):  " + hostServidorC + ":" + puertoServidorC);
             System.out.println("==================================================");
 
             while (true) {
@@ -112,6 +120,10 @@ public class GatewayZuul {
             case "VER_PERFIL":
             case "ELEGIR_PELICULA":
                 reenviarPeticion(peticion, hostServidorA, puertoServidorA, outCliente, hilo);
+                break;
+
+            case "SOLICITAR_SUBTITULOS":
+                reenviarPeticion(peticion, hostServidorC, puertoServidorC, outCliente, hilo);
                 break;
 
             case "SALIR":

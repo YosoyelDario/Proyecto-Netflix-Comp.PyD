@@ -24,15 +24,18 @@ public class ClienteInteractivo {
     private static String hostGateway = "localhost";
     private static int puertoGateway = 4000;
 
-    // Data Plane (UDP/TCP Directo)
+    // Data Plane (UDP Directo)
     private static String hostUDP = "localhost";
     private static int puertoUDP = 6000;
-    private static String hostSubtitulos = "localhost";
-    private static int puertoSubtitulos = 7000;
     private static String ipLocal = "127.0.0.1";
     // Estado de sesión
     private static boolean sesionIniciada = false;
     private static String tokenSesion = null;
+
+    // Configuración de reintentos (Modelo de Fallos: Omisión)
+    private static final int MAX_REINTENTOS = 3;
+    private static final int TIMEOUT_CONEXION_MS = 5000;
+    private static final int ESPERA_ENTRE_REINTENTOS_MS = 2000;
 
     // Búferes de reproducción (Rúbrica 2.2: Concurrencia)
     private static final ConcurrentLinkedQueue<FragmentoVideo> bufferVideo = new ConcurrentLinkedQueue<>();
@@ -191,18 +194,40 @@ public class ClienteInteractivo {
     }
 
     private static void descargarSubtitulosTCP(Pelicula pelicula, String idioma) {
-        try (Socket s = new Socket(hostSubtitulos, puertoSubtitulos, InetAddress.getByName(ipLocal), 0);
-             java.io.PrintWriter out = new java.io.PrintWriter(s.getOutputStream(), true);
-             java.io.BufferedReader in = new java.io.BufferedReader(new java.io.InputStreamReader(s.getInputStream()))) {
-            out.println(pelicula.titulo + ":" + idioma);
-            String l;
-            while ((l = in.readLine()) != null) {
-                if (l.equals("FIN_SUBTITULOS")) break;
-                bufferSubtitulos.add(l);
-            }
-        } catch (Exception e) {
-            // Rúbrica 2.3: Fallo parcial (Subtítulos caídos no detienen el video)
-            System.err.println("  [Aviso] Subtítulos no disponibles.");
+        // Solicitar subtítulos vía Gateway ZUUL (Control Plane, SSL/TCP)
+        Respuesta resp = enviarAlGateway(new Peticion("SOLICITAR_SUBTITULOS", pelicula.titulo + ":" + idioma));
+
+        if (resp == null) {
+            // Fallo parcial: subtítulos no disponibles, el video continúa
+            System.err.println("  [Aviso] Subtítulos no disponibles (servidor no responde).");
+            return;
+        }
+
+        switch (resp.codigo) {
+            case "OK":
+                // Subtítulos recibidos como lista serializada
+                if (resp.payload instanceof java.util.List) {
+                    @SuppressWarnings("unchecked")
+                    java.util.List<String> lineas = (java.util.List<String>) resp.payload;
+                    for (String linea : lineas) {
+                        bufferSubtitulos.add(linea);
+                    }
+                    System.out.println("  [Subtítulos] " + lineas.size() + " líneas cargadas (" + idioma + ").");
+                }
+                break;
+
+            case "IDIOMAS_DISPONIBLES":
+                System.out.println("  [Subtítulos] " + resp.payload);
+                break;
+
+            case "404":
+                System.out.println("  [Subtítulos] " + resp.payload);
+                break;
+
+            default:
+                // Fallo parcial: error inesperado, el video continúa
+                System.err.println("  [Aviso] Error en subtítulos: [" + resp.codigo + "] " + resp.payload);
+                break;
         }
     }
 
@@ -217,20 +242,73 @@ public class ClienteInteractivo {
         } catch (Exception e) { return null; }
     }
 
+    /**
+     * Envía una petición al Gateway ZUUL con reintentos automáticos.
+     *
+     * Modelo de Fallos - Omisión:
+     * Si la conexión falla (timeout, conexión rechazada, paquete perdido),
+     * reintenta hasta MAX_REINTENTOS veces con espera exponencial entre intentos.
+     * Esto cubre fallos transitorios de red sin requerir intervención del usuario.
+     *
+     * Detección: timeout de conexión (TIMEOUT_CONEXION_MS) + excepciones de I/O.
+     * Recuperación: reintento automático con backoff progresivo.
+     *
+     * @param p Petición a enviar
+     * @return Respuesta del servidor, o null si todos los reintentos fallaron
+     */
     private static Respuesta enviarAlGateway(Peticion p) {
-        
-        try (
-        Socket s = SSLSocketFactory.getDefault().createSocket(
-    hostGateway, puertoGateway, InetAddress.getByName(ipLocal), 0
-);
-        ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
-             ObjectInputStream in = new ObjectInputStream(s.getInputStream())) {
-            out.writeObject(p);
-            return (Respuesta) in.readObject();
-        } catch (Exception e) {
-            System.err.println("  [Error Gateway] " + e.getMessage());
-            return null;
+        Exception ultimoError = null;
+
+        for (int intento = 1; intento <= MAX_REINTENTOS; intento++) {
+            try {
+                Socket s = SSLSocketFactory.getDefault().createSocket();
+                s.connect(
+                    new java.net.InetSocketAddress(
+                        InetAddress.getByName(hostGateway), puertoGateway
+                    ),
+                    TIMEOUT_CONEXION_MS
+                );
+                s.setSoTimeout(TIMEOUT_CONEXION_MS);
+
+                try (
+                    ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
+                    ObjectInputStream in = new ObjectInputStream(s.getInputStream())
+                ) {
+                    out.writeObject(p);
+                    out.flush();
+                    Respuesta resp = (Respuesta) in.readObject();
+
+                    if (intento > 1) {
+                        System.out.println("  [Gateway] Reconexión exitosa en intento " + intento + ".");
+                    }
+
+                    return resp;
+
+                } finally {
+                    try { s.close(); } catch (Exception ignored) {}
+                }
+
+            } catch (Exception e) {
+                ultimoError = e;
+
+                if (intento < MAX_REINTENTOS) {
+                    int espera = ESPERA_ENTRE_REINTENTOS_MS * intento;
+                    System.err.println("  [Gateway] " + p.comando + " - Intento " + intento +
+                        "/" + MAX_REINTENTOS + " falló (" + e.getMessage() +
+                        "). Reintentando en " + (espera / 1000) + "s...");
+                    try {
+                        Thread.sleep(espera);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
         }
+
+        System.err.println("  [Gateway] " + p.comando + " - Todos los reintentos fallaron: " +
+            (ultimoError != null ? ultimoError.getMessage() : "error desconocido"));
+        return null;
     }
 
     private static void menuVerCatalogo() {
@@ -265,7 +343,6 @@ public class ClienteInteractivo {
     private static void cargarConfiguracion(String[] a) {
     if (a.length >= 2) { hostGateway = a[0]; puertoGateway = Integer.parseInt(a[1]); }
     if (a.length >= 4) { hostUDP = a[2]; puertoUDP = Integer.parseInt(a[3]); }
-    if (a.length >= 6) { hostSubtitulos = a[4]; puertoSubtitulos = Integer.parseInt(a[5]); }
-    if (a.length >= 7) { ipLocal = a[6]; }
+    if (a.length >= 5) { ipLocal = a[4]; }
 }
 }
