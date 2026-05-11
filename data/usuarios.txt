@@ -1,0 +1,7 @@
+# BD Usuarios - Servidor B (Perfiles y Autenticación)
+# Formato: username|password|plan|suscripcionActiva
+vicente|1234|Plan Premium - Chile|true
+ana|abcd|Plan Básico - Chile|true
+carlos|5678|Plan Estándar - Chile|true
+moroso|1111|Plan Premium - Chile|false
+invitado|0000|Plan Básico - Chile|true

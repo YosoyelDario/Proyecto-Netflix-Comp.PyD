@@ -1,0 +1,8 @@
+# BD Metadatos - Servidor A (Catálogo y Búsqueda)
+# Formato: id|titulo|fragmentos|sinopsis
+1|Matrix|10|Un hacker descubre que la realidad es una simulación creada por máquinas. Debe elegir entre la verdad y la ignorancia.
+2|Inception|15|Un ladrón que roba secretos del subconsciente recibe una última misión: implantar una idea en la mente de alguien.
+3|Interstellar|7|En un futuro donde la Tierra se muere, un grupo de astronautas viaja a través de un agujero de gusano buscando un nuevo hogar.
+4|The Dark Knight|12|Batman enfrenta al Joker, un criminal caótico que busca destruir Gotham desde dentro.
+5|Pulp Fiction|9|Historias entrelazadas de criminales, boxeadores y un misterioso maletín en Los Ángeles.
+6|El Padrino|14|La saga de la familia Corleone y su imperio criminal en la América de posguerra.

@@ -1,12 +1,10 @@
-package compartido; 
+package compartido;
+
 import java.io.Serializable;
 
-/**
- * Representa la respuesta del servidor. 
- * No es public para que pueda coexistir en Peticion.java.
- */
 public class Respuesta implements Serializable {
     private static final long serialVersionUID = 1L;
+
     public String codigo;
     public Object payload;
 

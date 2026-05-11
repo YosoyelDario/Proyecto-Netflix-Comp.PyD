@@ -1,11 +1,10 @@
 package compartido;
+
 import java.io.Serializable;
 
-/**
- * Representa la solicitud del cliente.
- */
 public class Peticion implements Serializable {
     private static final long serialVersionUID = 1L;
+
     public String comando;
     public String parametro;
 
@@ -14,10 +13,3 @@ public class Peticion implements Serializable {
         this.parametro = parametro;
     }
 }
-
-
-
-
-
-
-
